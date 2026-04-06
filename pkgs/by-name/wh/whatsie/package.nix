@@ -3,25 +3,37 @@
   lib,
   stdenv,
   cmake,
-  libx11,
-  libxcb,
   qt6,
+  linkFarm,
+  hunspellDictsChromium,
+  dictionaries ? [
+    hunspellDictsChromium.en-us
+  ],
 }:
 
+let
+  qtwebengineDictionaries = linkFarm "whatsie-qtwebengine-dictionaries" (
+    map (d: {
+      name = d.dictFileName;
+      path = d;
+    }) dictionaries
+  );
+in
 stdenv.mkDerivation (finalAttrs: {
   pname = "whatsie";
-  version = "5.0.0";
+  version = "6.0.3";
 
   src = fetchFromGitHub {
     owner = "keshavbhatt";
     repo = "whatsie";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-GVXwZZFfPqAmBrP95zleHc2PpMMBj/8xZdW4JpFdYVs=";
+    hash = "sha256-vT5Oopkc2rF0+d8E+KuOXIoGAr1abO4yRdnJ9UfG6P8=";
   };
 
   buildInputs = [
-    libx11
-    libxcb
+    qt6.qtbase
+    qt6.qtdeclarative
+    qt6.qtsvg
     qt6.qtwebengine
   ];
 
@@ -33,6 +45,26 @@ stdenv.mkDerivation (finalAttrs: {
   strictDeps = true;
 
   enableParallelBuilding = true;
+
+  doCheck = true;
+
+  preCheck = ''
+    export HOME=$(mktemp -d)
+  '';
+
+  checkPhase = ''
+    runHook preCheck
+
+    ctest --output-on-failure --exclude-regex '^tst_permissions$'
+
+    runHook postCheck
+  '';
+
+  preFixup = lib.optionalString (dictionaries != [ ]) ''
+    qtWrapperArgs+=(
+      --set-default QTWEBENGINE_DICTIONARIES_PATH "${qtwebengineDictionaries}"
+    )
+  '';
 
   meta = {
     homepage = "https://github.com/keshavbhatt/whatsie";
